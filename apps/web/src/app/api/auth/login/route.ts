@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
+    console.error('[auth/login] error:', err);
     return handleError(err);
   }
 }
