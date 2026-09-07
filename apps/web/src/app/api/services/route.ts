@@ -14,8 +14,13 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category') || undefined;
     const where: Record<string, unknown> = { isActive: true };
     if (category) where.category = category;
-    const services = await prisma.service.findMany({ where, orderBy: { name: 'asc' } });
-    return NextResponse.json(services);
+    const services = await prisma.service.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { bookingServices: true } } },
+    });
+    const shaped = services.map((s) => ({ ...s, bookingServices: Array(s._count.bookingServices).fill({ id: '' }) }));
+    return NextResponse.json(shaped);
   } catch (err) {
     return handleError(err);
   }

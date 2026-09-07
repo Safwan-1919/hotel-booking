@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       include: {
         guest: { select: { firstName: true, lastName: true } },
-        room: { select: { roomNumber: true, roomType: { select: { name: true } } } },
+        room: { include: { roomType: { select: { name: true } } } },
       },
     });
 

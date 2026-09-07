@@ -17,7 +17,7 @@ import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface Payment {
-  id: string; amount: string; method: string; status: string; processedAt: string; transactionRef: string; notes: string;
+  id: string; amount: string; paymentMethod: string; paymentType: string; createdAt: string; reference: string; notes: string;
   booking: { bookingNumber: string; guest: { firstName: string; lastName: string }; room: { roomNumber: string } };
 }
 interface Booking { id: string; bookingNumber: string; totalAmount: string; paidAmount: string; guest: { firstName: string; lastName: string }; room: { roomNumber: string } }
@@ -44,7 +44,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [filterMethod, setFilterMethod] = useState('all');
-  const [newPayment, setNewPayment] = useState({ bookingId: '', amount: 0, method: 'CASH', transactionRef: '', notes: '' });
+  const [newPayment, setNewPayment] = useState({ bookingId: '', amount: 0, paymentMethod: 'CASH', reference: '', notes: '' });
   const [bookingSearch, setBookingSearch] = useState('');
 
   const fetchPayments = useCallback(async () => {
@@ -63,8 +63,8 @@ export default function PaymentsPage() {
 
   const handleCreate = async () => {
     try {
-      await api.post('/payments', { ...newPayment, amount: Number(newPayment.amount) });
-      setAddDialogOpen(false); setNewPayment({ bookingId: '', amount: 0, method: 'CASH', transactionRef: '', notes: '' }); fetchPayments();
+      await api.post(`/payments/${newPayment.bookingId}`, { ...newPayment, amount: Number(newPayment.amount) });
+      setAddDialogOpen(false); setNewPayment({ bookingId: '', amount: 0, paymentMethod: 'CASH', reference: '', notes: '' }); fetchPayments();
     } catch (err: any) { alert(err.message); }
   };
 
@@ -76,12 +76,12 @@ export default function PaymentsPage() {
   const selectedBooking = bookings.find((b) => b.id === newPayment.bookingId);
 
   const methodCounts = payments.reduce<Record<string, number>>((acc, p) => {
-    acc[p.method] = (acc[p.method] || 0) + 1;
+    acc[p.paymentMethod] = (acc[p.paymentMethod] || 0) + 1;
     return acc;
   }, {});
   const methodRevenue = payments.reduce<Record<string, number>>((acc, p) => {
-    if (p.status === 'COMPLETED') {
-      acc[p.method] = (acc[p.method] || 0) + Number(p.amount);
+    if (p.paymentType !== 'REFUND') {
+      acc[p.paymentMethod] = (acc[p.paymentMethod] || 0) + Number(p.amount);
     }
     return acc;
   }, {});
@@ -89,8 +89,8 @@ export default function PaymentsPage() {
   const methodCountData = Object.entries(methodCounts).map(([name, count]) => ({ name: name.replace('_', ' '), value: count }));
   const methodRevenueData = Object.entries(methodRevenue).map(([name, amount]) => ({ name: name.replace('_', ' '), amount }));
 
-  const totalCollected = payments.filter((p) => p.status === 'COMPLETED').reduce((sum, p) => sum + Number(p.amount), 0);
-  const completedCount = payments.filter((p) => p.status === 'COMPLETED').length;
+  const totalCollected = payments.filter((p) => p.paymentType !== 'REFUND').reduce((sum, p) => sum + Number(p.amount), 0);
+  const completedCount = payments.filter((p) => p.paymentType !== 'REFUND').length;
 
   return (
     <div className="space-y-5">
@@ -129,15 +129,15 @@ export default function PaymentsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2"><Label>Amount</Label><Input type="number" value={newPayment.amount || ''} onChange={(e) => setNewPayment({ ...newPayment, amount: parseFloat(e.target.value) || 0 })} /></div>
                 <div className="space-y-2"><Label>Method</Label>
-                  <Select value={newPayment.method} onValueChange={(v) => setNewPayment({ ...newPayment, method: v })}>
+                  <Select value={newPayment.paymentMethod} onValueChange={(v) => setNewPayment({ ...newPayment, paymentMethod: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'ONLINE', 'MOBILE'].map((m) => <SelectItem key={m} value={m}>{m.replace('_', ' ')}</SelectItem>)}
+                      {['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'ONLINE', 'OTHER'].map((m) => <SelectItem key={m} value={m}>{m.replace('_', ' ')}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2"><Label>Transaction Reference</Label><Input value={newPayment.transactionRef} onChange={(e) => setNewPayment({ ...newPayment, transactionRef: e.target.value })} placeholder="Optional" /></div>
+              <div className="space-y-2"><Label>Transaction Reference</Label><Input value={newPayment.reference} onChange={(e) => setNewPayment({ ...newPayment, reference: e.target.value })} placeholder="Optional" /></div>
               <div className="space-y-2"><Label>Notes</Label><Input value={newPayment.notes} onChange={(e) => setNewPayment({ ...newPayment, notes: e.target.value })} placeholder="Optional" /></div>
             </div>
             <DialogFooter>
@@ -219,7 +219,7 @@ export default function PaymentsPage() {
           <SelectTrigger className="w-36 h-9"><SelectValue placeholder="Method" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Methods</SelectItem>
-            {['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'ONLINE', 'MOBILE'].map((m) => <SelectItem key={m} value={m}>{m.replace('_', ' ')}</SelectItem>)}
+            {['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'ONLINE', 'OTHER'].map((m) => <SelectItem key={m} value={m}>{m.replace('_', ' ')}</SelectItem>)}
           </SelectContent>
         </Select>
         <span className="text-xs text-muted-foreground">{payments.length} payments</span>
@@ -258,9 +258,9 @@ export default function PaymentsPage() {
                 <td className="px-4 py-2.5 font-mono text-xs">{p.booking.bookingNumber}</td>
                 <td className="px-4 py-2.5 truncate max-w-[140px]">{p.booking.guest.firstName} {p.booking.guest.lastName}</td>
                 <td className="px-4 py-2.5 font-medium">{formatCurrency(Number(p.amount))}</td>
-                <td className="px-4 py-2.5 text-xs uppercase">{p.method.replace('_', ' ')}</td>
-                <td className="px-4 py-2.5 text-xs">{formatDate(p.processedAt)}</td>
-                <td className="px-4 py-2.5"><Badge className={getStatusColor(p.status)}>{p.status}</Badge></td>
+                <td className="px-4 py-2.5 text-xs uppercase">{p.paymentMethod.replace('_', ' ')}</td>
+                <td className="px-4 py-2.5 text-xs">{formatDate(p.createdAt)}</td>
+                <td className="px-4 py-2.5"><Badge className={getStatusColor(p.paymentType)}>{p.paymentType.replace('_', ' ')}</Badge></td>
               </tr>
             ))}
           </tbody>

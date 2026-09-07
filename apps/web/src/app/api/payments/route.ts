@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
 
     const where: Record<string, unknown> = {};
     if (bookingId) where.bookingId = bookingId;
+    const method = searchParams.get('method');
+    if (method) where.paymentMethod = method;
 
     const skip = (page - 1) * limit;
     const [payments, total] = await Promise.all([
