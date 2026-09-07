@@ -15,12 +15,14 @@ A full-stack hotel booking and property management prototype. Frontend built wit
 ```
 hotel-booking-system/
 ├── apps/
-│   ├── web/          # Next.js frontend
-│   └── backend/      # Express API server
+│   ├── web/          # Next.js frontend + API routes (Next.js Route Handlers)
+│   └── backend/      # Original Express server (kept for reference)
 ├── packages/
 ├── package.json      # Workspace root
 └── pnpm-workspace.yaml
 ```
+
+The Next.js app (`apps/web`) hosts both the UI and the backend API as Route Handlers under `app/api/*`. The original Express implementation in `apps/backend` is kept for reference.
 
 ## Features
 
@@ -84,26 +86,35 @@ FRONTEND_URL=http://localhost:3000
 ### Frontend (`apps/web/.env.local`)
 
 ```
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
+# Leave empty to use same-origin /api routes.
+# Set only if hosting the API on a different origin.
+# NEXT_PUBLIC_API_URL=https://api.example.com/api
 ```
 
 For production, set `NEXT_PUBLIC_API_URL` to your deployed API URL.
 
 ## Deployment
 
-The prototype is designed to run on Vercel with a managed Postgres database.
+The prototype is designed to run as a single Next.js deployment on Vercel, backed by Vercel Postgres.
 
 1. Push the repository to GitHub.
 2. Import the project into Vercel.
-3. Add a Postgres database (Storage → Create Database) and copy the `DATABASE_URL`.
-4. In **Project Settings → Environment Variables**, add:
-   - `DATABASE_URL`
+3. In **Project Settings → General**, set **Root Directory** to `apps/web`.
+4. In **Storage**, create a **Postgres** database and copy the provided `DATABASE_URL`.
+5. In **Project Settings → Environment Variables**, add:
+   - `DATABASE_URL` (from the Postgres database)
    - `JWT_SECRET` (generate a strong random string)
-   - `JWT_EXPIRES_IN`
-   - `FRONTEND_URL` (your Vercel domain)
-   - `NEXT_PUBLIC_API_URL` (your API deployment URL)
-5. Add a **Build Command** override if needed and a **Postinstall** script to generate the Prisma client.
-6. After the first deploy, run `prisma db push` against the production database to create tables, then seed if desired.
+   - `JWT_EXPIRES_IN` (e.g. `7d`)
+6. Deploy. The build runs `prisma generate` automatically via `postinstall`.
+7. After the first deploy, run Prisma migrations against the production database. The easiest way is from a local terminal:
+
+   ```bash
+   # set DATABASE_URL to the Vercel Postgres URL and run:
+   pnpm --filter @hotel/web db:push
+   pnpm --filter @hotel/web db:seed   # optional, loads sample data
+   ```
+
+API and frontend are served from the same origin, so no cross-origin or CORS configuration is required.
 
 ## Default Seeded Users (after `pnpm db:seed`)
 

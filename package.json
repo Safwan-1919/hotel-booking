@@ -2,15 +2,13 @@
   "name": "hotel-booking-system",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @hotel/backend dev",
-    "dev:web": "pnpm --filter @hotel/web dev",
-    "dev:all": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "db:generate": "pnpm --filter @hotel/backend db:generate",
-    "db:push": "pnpm --filter @hotel/backend db:push",
-    "db:migrate": "pnpm --filter @hotel/backend db:migrate",
-    "db:seed": "pnpm --filter @hotel/backend db:seed",
-    "db:reset": "pnpm --filter @hotel/backend db:reset"
+    "dev": "pnpm --filter @hotel/web dev",
+    "build": "pnpm --filter @hotel/web build",
+    "db:generate": "pnpm --filter @hotel/web db:generate",
+    "db:push": "pnpm --filter @hotel/web db:push",
+    "db:migrate": "pnpm --filter @hotel/web db:migrate",
+    "db:seed": "pnpm --filter @hotel/web db:seed",
+    "db:reset": "pnpm --filter @hotel/web db:reset"
   },
   "engines": {
     "node": ">=18"

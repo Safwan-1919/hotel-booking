@@ -1,0 +1,320 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Roles & Users ───────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  RECEPTIONIST
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String
+  firstName   String
+  lastName    String
+  phone       String?
+  role        UserRole  @default(RECEPTIONIST)
+  status      UserStatus @default(ACTIVE)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  auditLogs      AuditLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+// ─── Room Types ──────────────────────────────────────────────
+
+model RoomType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  basePrice   Decimal  @db.Decimal(10, 2)
+  maxGuests   Int      @default(2)
+  bedType     String   // single, double, twin, queen, king
+  size        String?  // sqm
+  amenities   String[] // JSON array of amenities
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rooms Room[]
+
+  @@index([name])
+}
+
+// ─── Rooms ───────────────────────────────────────────────────
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+  CLEANING
+  OUT_OF_ORDER
+}
+
+enum Floor {
+  GROUND
+  FIRST
+  SECOND
+  THIRD
+  FOURTH
+}
+
+model Room {
+  id          String     @id @default(uuid())
+  roomNumber  String     @unique
+  floor       Floor
+  roomTypeId  String
+  status      RoomStatus @default(AVAILABLE)
+  isActive    Boolean    @default(true)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  roomType   RoomType  @relation(fields: [roomTypeId], references: [id])
+  bookings   Booking[]
+  inspections RoomInspection[]
+
+  @@index([roomNumber])
+  @@index([status])
+  @@index([floor])
+  @@index([roomTypeId])
+}
+
+// ─── Guests ──────────────────────────────────────────────────
+
+enum GuestStatus {
+  ACTIVE
+  BLACKLISTED
+}
+
+model Guest {
+  id            String      @id @default(uuid())
+  firstName     String
+  lastName      String
+  email         String?
+  phone         String
+  idType        String      // passport, national_id, drivers_license
+  idNumber      String
+  address       Json?
+  nationality   String?
+  dateOfBirth   DateTime?
+  notes         String?
+  status        GuestStatus @default(ACTIVE)
+  totalStays    Int         @default(0)
+  totalSpent    Decimal     @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  bookings Booking[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([idNumber])
+  @@index([lastName, firstName])
+}
+
+// ─── Bookings ────────────────────────────────────────────────
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  ONLINE
+  OTHER
+}
+
+enum BookingSource {
+  WALK_IN
+  PHONE
+  WEBSITE
+  OTA       // Online Travel Agency (Booking.com, Expedia, etc.)
+  AGENT
+  CORPORATE
+}
+
+model Booking {
+  id              String         @id @default(uuid())
+  bookingNumber   String         @unique
+  guestId         String
+  roomId          String
+  checkInDate     DateTime       @db.Date
+  checkOutDate    DateTime       @db.Date
+  actualCheckIn   DateTime?
+  actualCheckOut  DateTime?
+  adults          Int            @default(1)
+  children        Int            @default(0)
+  status          BookingStatus  @default(PENDING)
+  paymentStatus   PaymentStatus  @default(UNPAID)
+  paymentMethod   PaymentMethod?
+  source          BookingSource  @default(WALK_IN)
+  roomRate        Decimal        @db.Decimal(10, 2)
+  totalAmount     Decimal        @db.Decimal(10, 2)
+  discount        Decimal        @default(0) @db.Decimal(10, 2)
+  taxAmount       Decimal        @default(0) @db.Decimal(10, 2)
+  paidAmount      Decimal        @default(0) @db.Decimal(10, 2)
+  specialRequests String?
+  internalNotes   String?
+  createdByUserId String?
+  modifiedByUserId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  guest          Guest   @relation(fields: [guestId], references: [id])
+  room           Room    @relation(fields: [roomId], references: [id])
+  payments       Payment[]
+  services       BookingService[]
+
+  @@index([bookingNumber])
+  @@index([guestId])
+  @@index([roomId])
+  @@index([status])
+  @@index([checkInDate])
+  @@index([checkOutDate])
+  @@index([paymentStatus])
+}
+
+// ─── Payments ────────────────────────────────────────────────
+
+enum PaymentType {
+  ROOM_CHARGE
+  DEPOSIT
+  EXTRA_SERVICE
+  REFUND
+  OTHER
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  bookingId     String
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  paymentType   PaymentType   @default(ROOM_CHARGE)
+  reference     String?       // transaction reference
+  notes         String?
+  processedBy   String?       // staff name
+  createdAt     DateTime      @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@index([paymentMethod])
+  @@index([createdAt])
+}
+
+// ─── Extra Services ──────────────────────────────────────────
+
+model Service {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  category    String   // spa, restaurant, minibar, laundry, transport, other
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookingServices BookingService[]
+
+  @@index([category])
+}
+
+model BookingService {
+  id          String   @id @default(uuid())
+  bookingId   String
+  serviceId   String
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  totalPrice  Decimal  @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@index([bookingId])
+  @@index([serviceId])
+}
+
+// ─── Room Inspections ────────────────────────────────────────
+
+enum InspectionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+model RoomInspection {
+  id          String           @id @default(uuid())
+  roomId      String
+  inspectorId String
+  status      InspectionStatus @default(PENDING)
+  notes       String?
+  issues      String[]
+  inspectedAt DateTime         @default(now())
+
+  room Room @relation(fields: [roomId], references: [id])
+
+  @@index([roomId])
+  @@index([inspectorId])
+}
+
+// ─── Audit Log ───────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  action      String   // CREATE, UPDATE, DELETE, CHECK_IN, CHECK_OUT, etc.
+  entity      String   // Booking, Room, Guest, Payment, etc.
+  entityId    String
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+}
